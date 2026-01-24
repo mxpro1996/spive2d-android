@@ -509,6 +509,7 @@ function handleAnimationChange(e) {
   } else {
     handleSpineAnimationChange(e.target.selectedIndex);
     createAttachmentUI();
+    handleFilterInput();
   }
 }
 
@@ -526,6 +527,23 @@ export function resetAttachmentsCache() {
   attachmentsCache = {};
 }
 
+function getSkinAttachment(slotIndex, name, defaultSkin, skeleton) {
+  let attachment = defaultSkin.getAttachment(slotIndex, name);
+  let key = name;
+  if (!attachment) {
+    const slot = skeleton.slots[slotIndex];
+    if (slot && slot.data.attachmentName) {
+      const altKey = slot.data.attachmentName;
+      const altAtt = defaultSkin.getAttachment(slotIndex, altKey);
+      if (altAtt && altAtt.name === name) {
+        attachment = altAtt;
+        key = altKey;
+      }
+    }
+  }
+  return { attachment, key };
+}
+
 export function removeAttachments() {
   const attachmentNames = Object.keys(attachmentsCache);
   if (attachmentNames.length > 0) {
@@ -539,13 +557,27 @@ export function removeAttachments() {
           checkbox.checked = false;
           const defaultSkin = skeleton.data.defaultSkin;
           const slotIndex = Number(checkbox.getAttribute("data-old-index"));
-          const currentAttachment = defaultSkin.getAttachment(slotIndex, name);
-          attachmentsCache[name] = [slotIndex, currentAttachment];
-          defaultSkin.removeAttachment(slotIndex, name);
+          const { attachment: currentAttachment, key: skinKey } = getSkinAttachment(
+            slotIndex,
+            name,
+            defaultSkin,
+            skeleton
+          );
+          if (currentAttachment) {
+            attachmentsCache[name] = [slotIndex, currentAttachment, true, skinKey];
+            defaultSkin.removeAttachment(slotIndex, skinKey);
+          } else {
+            const slot = skeleton.slots[slotIndex];
+            if (slot && slot.attachment && slot.attachment.name === name) {
+              attachmentsCache[name] = [slotIndex, slot.attachment, false, null];
+              slot.attachment = null;
+            }
+          }
         }
       });
     });
     skeleton.setToSetupPose();
+    syncHiddenAttachments();
   }
 }
 
@@ -571,7 +603,9 @@ export function saveSkins() {
 export function restoreSkins(skinFlags) {
   const checkboxes = skin.querySelectorAll('input[type="checkbox"]');
   checkboxes.forEach((checkbox, index) => {
-    checkbox.checked = skinFlags[index];
+    if (skinFlags[index] !== undefined) {
+      checkbox.checked = skinFlags[index];
+    }
   });
   handleSkinCheckboxChange();
 }
@@ -643,6 +677,16 @@ function handleDrawableCheckboxChange(e) {
   currentModel.internalModel.coreModel._model.drawables.opacities = opacities;
 }
 
+function syncHiddenAttachments() {
+  const skeleton = skeletons["0"].skeleton;
+  Object.values(attachmentsCache).forEach(([slotIndex, , wasFromSkin]) => {
+    if (!wasFromSkin) {
+      const slot = skeleton.slots[slotIndex];
+      if (slot) slot.attachment = null;
+    }
+  });
+}
+
 function handleAttachmentCheckboxChange(e) {
   const skeleton = skeletons["0"].skeleton;
   const targetCheckbox = e.target.closest('input[type="checkbox"]');
@@ -651,32 +695,36 @@ function handleAttachmentCheckboxChange(e) {
   const defaultSkin = skeleton.data.defaultSkin;
   if (targetCheckbox.checked) {
     if (attachmentsCache[name]) {
-      const [cachedSlotIndex, cachedAttachment, wasFromSkin] = attachmentsCache[name];
+      const [cachedSlotIndex, cachedAttachment, wasFromSkin, savedSkinKey] = attachmentsCache[name];
       if (wasFromSkin) {
-        defaultSkin.setAttachment(cachedSlotIndex, name, cachedAttachment);
+        defaultSkin.setAttachment(cachedSlotIndex, savedSkinKey || name, cachedAttachment);
         skeleton.setToSetupPose();
       } else {
         const slot = skeleton.slots[cachedSlotIndex];
-        if (slot) {
-          slot.attachment = cachedAttachment;
-        }
+        if (slot) slot.attachment = cachedAttachment;
       }
       delete attachmentsCache[name];
     }
   } else {
-    const currentAttachment = defaultSkin.getAttachment(slotIndex, name);
+    const { attachment: currentAttachment, key: skinKey } = getSkinAttachment(
+      slotIndex,
+      name,
+      defaultSkin,
+      skeleton
+    );
     if (currentAttachment) {
-      attachmentsCache[name] = [slotIndex, currentAttachment, true];
-      defaultSkin.removeAttachment(slotIndex, name);
+      attachmentsCache[name] = [slotIndex, currentAttachment, true, skinKey];
+      defaultSkin.removeAttachment(slotIndex, skinKey);
       skeleton.setToSetupPose();
     } else {
       const slot = skeleton.slots[slotIndex];
       if (slot && slot.attachment && slot.attachment.name === name) {
-        attachmentsCache[name] = [slotIndex, slot.attachment, false];
+        attachmentsCache[name] = [slotIndex, slot.attachment, false, null];
         slot.attachment = null;
       }
     }
   }
+  syncHiddenAttachments();
 }
 
 function handleSkinCheckboxChange() {
@@ -693,6 +741,7 @@ function handleSkinCheckboxChange() {
   });
   skeleton.setSkin(newSkin);
   skeleton.setToSetupPose();
+  syncHiddenAttachments();
 }
 
 function handleSettingChange(e) {

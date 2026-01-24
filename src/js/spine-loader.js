@@ -136,8 +136,10 @@ function loadSkeleton(fileName) {
     assetManager.get(`${_dirName}${fileName}${skelExt}`)
   );
   const skeleton = new spine.Skeleton(skeletonData);
-  if (skeleton.data.skins.length > 1)
+  if (skeleton.data.skins[0].name === "default" && skeleton.data.skins.length > 1)
     skeleton.setSkinByName(skeleton.data.skins[1].name);
+  else skeleton.setSkinByName(skeleton.data.skins[0].name);
+  if (!skeleton.data.defaultSkin) skeleton.data.defaultSkin = new spine.Skin("default")
   const bounds = calculateSetupPoseBounds(skeleton);
   const animationStateData = new spine.AnimationStateData(skeleton.data);
   const animationState = new spine.AnimationState(animationStateData);
@@ -218,4 +220,6 @@ export function disposeSpine() {
   if (assetManager) assetManager.dispose();
   animationStates = [];
   skeletons = {};
+  const skin = document.getElementById("skin");
+  if (skin) skin.innerHTML = "";
 }

@@ -188,16 +188,20 @@ export function createAttachmentUI() {
 
 function createSkinUI() {
   const skins = skeletons["0"].skeleton.data.skins;
-  if (skins.length <= 1) {
+  if (skins.length === 1) {
     UIElements.settingSelector.disabled = true;
     return;
   }
   UIElements.settingSelector.disabled = false;
-  const skinData = skins.slice(1).map(skin => [skin.name, -1]);
+  let defaultIndex = 0;
+  if (skins.length > 1 && skins[0].name === "default") {
+    defaultIndex = 1;
+  }
+  const skinData = skins.map(skin => [skin.name, -1]);
   const skinsHTML = skinData
-    .map(([name]) => `
+    .map(([name], index) => `
       <div class="item">
-        <label title="${name}">${name}<input type="checkbox"></label>
+        <label title="${name}">${name}<input type="checkbox" ${index === defaultIndex ? "checked" : ""}></label>
       </div>
     `)
     .join('');
