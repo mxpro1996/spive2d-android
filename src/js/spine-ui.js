@@ -144,14 +144,23 @@ export function restoreSkins(skinFlags) {
 
 export function handleSkinCheckboxChange() {
   const skeleton = skeletons["0"].skeleton;
-  const newSkin = new spine.Skin("_");
   const checkboxes = skin.querySelectorAll("input[type='checkbox']");
+  if (checkboxes.length === 0) {
+    syncHiddenAttachments();
+    createAttachmentUI();
+    handleFilterInput();
+    return;
+  }
+  const newSkin = new spine.Skin("_");
   skeleton.setSkin(null);
   checkboxes.forEach((checkbox) => {
     if (checkbox.checked) newSkin.addSkin(skeleton.data.findSkin(checkbox.parentElement.textContent));
   });
   skeleton.setSkin(newSkin);
   skeleton.setToSetupPose();
+  const state = skeletons["0"].state;
+  state.apply(skeleton);
+  skeleton.updateWorldTransform(2);
   syncHiddenAttachments();
   createAttachmentUI();
   handleFilterInput();

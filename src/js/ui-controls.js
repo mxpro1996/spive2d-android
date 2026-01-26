@@ -27,12 +27,7 @@ import {
   setPremultipliedAlpha,
   setSetting,
 } from "./state.js";
-import {
-  resetSettingUI,
-  createSceneSelector,
-  createAttachmentUI,
-  handleFilterInput
-} from "./ui.js";
+import { createSceneSelector, resetSettingUI } from "./ui.js";
 
 const { getCurrentWindow, PhysicalSize } = window.__TAURI__.window;
 
@@ -289,8 +284,6 @@ export function handleAnimationChange(e) {
     handleLive2DAnimationChange(motion, index);
   } else {
     handleSpineAnimationChange(e.target.selectedIndex);
-    createAttachmentUI();
-    handleFilterInput();
   }
 }
 

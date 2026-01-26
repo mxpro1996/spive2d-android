@@ -1,6 +1,7 @@
 import { spines } from "./main.js";
 import {
   removeAttachments,
+  resetAttachmentsCache,
   restoreSkins,
   saveSkins,
 } from "./spine-ui.js";
@@ -59,17 +60,14 @@ async function getSpineVersion(dirName, fileNames) {
         break;
       }
     }
-    if (position === -1)
-      throw new Error("Valid version pattern not found in .skel file");
+    if (position === -1) throw new Error("Valid version pattern not found in .skel file");
     spineVersion = `${String.fromCharCode(
       data[position - 1]
     )}.${String.fromCharCode(data[position + 1])}`;
   } else if (ext.includes(".json")) {
     const content = await file.text();
     const jsonData = JSON.parse(content);
-    if (!jsonData.skeleton || !jsonData.skeleton.spine) {
-      throw new Error("Invalid JSON structure");
-    }
+    if (!jsonData.skeleton || !jsonData.skeleton.spine) throw new Error("Invalid JSON structure");
     spineVersion = jsonData.skeleton.spine.substring(0, 3);
   }
   return spineVersion;
@@ -130,6 +128,18 @@ function calculateSetupPoseBounds(skeleton) {
   const offset = new spine.Vector2();
   const size = new spine.Vector2();
   skeleton.getBounds(offset, size, []);
+  if (size.x === -Infinity || size.y === -Infinity) {
+    const animations = skeleton.data.animations;
+    for (let i = 0; i < animations.length; i++) {
+      const animation = animations[i];
+      animation.apply(skeleton, 0, 0, false, null, 1.0, 0, 0);
+      skeleton.updateWorldTransform(2);
+      skeleton.getBounds(offset, size, []);
+      if (size.x !== -Infinity && size.y !== -Infinity) {
+        return { offset: offset, size: size };
+      }
+    }
+  }
   return { offset: offset, size: size };
 }
 
@@ -151,6 +161,8 @@ function loadSkeleton(fileName) {
   else skeleton.setSkinByName(skeleton.data.skins[0].name);
   if (!skeleton.data.defaultSkin) skeleton.data.defaultSkin = new spine.Skin("default")
   const bounds = calculateSetupPoseBounds(skeleton);
+  skeleton.setToSetupPose();
+  skeleton.updateWorldTransform(2);
   const animationStateData = new spine.AnimationStateData(skeleton.data);
   const animationState = new spine.AnimationState(animationStateData);
   animationStates.push(animationState);
@@ -189,9 +201,13 @@ function render() {
   if (isFirstRender) {
     const animationName = document.getElementById("animationSelector").value;
     const skinFlags = saveSkins();
-    resetUI();
     createAnimationSelector(skeletons["0"].skeleton.data.animations);
     restoreAnimation(animationName);
+    const skeleton = skeletons["0"].skeleton;
+    const state = skeletons["0"].state;
+    state.apply(skeleton);
+    skeleton.updateWorldTransform(2);
+    resetUI();
     restoreSkins(skinFlags);
     removeAttachments();
     setFirstRenderFlag(false);
@@ -235,6 +251,7 @@ export function disposeSpine() {
   spineCanvas.style.display = "none";
   if (requestId) window.cancelAnimationFrame(requestId);
   requestId = undefined;
+  resetAttachmentsCache();
   if (assetManager) assetManager.dispose();
   setAnimationStates([]);
   setSkeletons({});
